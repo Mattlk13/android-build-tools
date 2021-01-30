@@ -10,7 +10,7 @@ cd "`dirname "$SELF"`" || exit 1
 
 function fatal-error {
     echo -e "\nERROR: Install failed." >&2
-    echo -e "\nPlease read output for clues, or open an issue on GitHub (https://github.com/mortend/android-build-tools/issues)." >&2
+    echo -e "\nPlease read output for clues, or open an issue on GitHub (https://github.com/fuse-open/android-build-tools/issues)." >&2
     echo -e "\nPlease note that JDK8 (not 9+) is required to install Android SDK. Get OpenJDK8 from https://adoptopenjdk.net/ and try again." >&2
     exit 1
 }
@@ -27,10 +27,12 @@ case "$(uname -s)" in
 Darwin)
     SDK_URL=https://dl.google.com/android/repository/sdk-tools-darwin-$SDK_VERSION.zip
     SDK_DIR=~/Library/Android/sdk
+    IS_MAC=1
     ;;
 Linux)
     SDK_URL=https://dl.google.com/android/repository/sdk-tools-linux-$SDK_VERSION.zip
     SDK_DIR=~/Android/Sdk
+    IS_LINUX=1
     ;;
 CYGWIN*|MINGW*|MSYS*)
     SDK_URL=https://dl.google.com/android/repository/sdk-tools-windows-$SDK_VERSION.zip
@@ -111,6 +113,24 @@ if [[ "$IS_WINDOWS" = 1 && -z "$JAVA_HOME" ]]; then
     else
         echo "Found JDK8 at $JAVA_HOME"
     fi
+
+# Detect JAVA_HOME on Mac.
+elif [[ "$IS_MAC" = 1 && -z "$JAVA_HOME" ]]; then
+    android_studio_jre=/Applications/Android\ Studio.app/Contents/jre/jdk/Contents/Home/jre
+
+    if [ -f "$android_studio_jre/bin/java" ]; then
+        export JAVA_HOME=$android_studio_jre
+        echo "Found JDK8 at $JAVA_HOME"
+    fi
+
+# Detect JAVA_HOME on Linux.
+elif [[ "$IS_LINUX" = 1 && -z "$JAVA_HOME" ]]; then
+    android_studio_jre=/opt/android-studio/jre
+
+    if [ -f "$android_studio_jre/bin/java" ]; then
+        export JAVA_HOME=$android_studio_jre
+        echo "Found JDK8 at $JAVA_HOME"
+    fi
 fi
 
 # Make sure HOME is defined before invoking sdkmanager.
@@ -124,7 +144,7 @@ fi
 # Download SDK.
 function download-error {
     echo -e "\nERROR: Download failed." >&2
-    echo -e "\nPlease try again later, or open an issue on GitHub (https://github.com/mortend/android-build-tools/issues)." >&2
+    echo -e "\nPlease try again later, or open an issue on GitHub (https://github.com/fuse-open/android-build-tools/issues)." >&2
     exit 1
 }
 
@@ -178,6 +198,15 @@ function sdkmanager-silent {
     if [ $? != 0 ]; then
         cat ~/.android/sdkmanager.log
         fatal-error
+    fi
+
+    # Verify that sdkmanager works (#9).
+    cat ~/.android/sdkmanager.log | grep java.lang.NoClassDefFoundErrors
+
+    if [ $? == 0 ]; then
+        echo -e "\nERROR: Incompatible JDK version detected." >&2
+        echo -e "\nPlease note that JDK8 (not 9+) is required to install Android SDK. Get OpenJDK8 from https://adoptopenjdk.net/ and try again." >&2
+        exit 1
     fi
 }
 
